@@ -1,4 +1,12 @@
 from __future__ import annotations
+from pathlib import Path
+import sys
+
+
+current_path = Path(__file__).resolve()
+shared_root = current_path.parents[1]
+sys.path.append(str(shared_root))
+
 
 import os
 from collections.abc import Iterable
@@ -8,6 +16,8 @@ import numpy.typing as npt
 import torch
 from jaxtyping import Bool, Float, Int
 from torch import Tensor
+
+from cs336_basics.tokenizer import train_bpe
 
 
 def run_linear(
@@ -589,4 +599,4 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    raise NotImplementedError
+    return train_bpe(input_path, vocab_size, special_tokens)

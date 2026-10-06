@@ -13,7 +13,6 @@ def train_bpe(input_path:str, vocab_size: int, special_tokens: list[str]):
     merge_list = []
     counts = convert_string_dict_to_byte_dict(pre_tokenize(text, special_tokens))
     vocab_cur_size = len(vocab)
-
     
     while (vocab_cur_size < vocab_size):
         left, right = find_most_occurring_byte_pair(counts)
@@ -25,6 +24,7 @@ def train_bpe(input_path:str, vocab_size: int, special_tokens: list[str]):
     return (vocab, merge_list)
 
 
+def construct
 
 '''
 ARGS:
@@ -75,7 +75,6 @@ def merge_most_occurring_byte_pair(left_byte: bytes, right_byte: bytes, pre_toke
     for pre_token_byte_tuple in pre_token_bytes_dict.keys():
         new_tuple = create_new_tuple_given_bytes(left_byte, right_byte, pre_token_byte_tuple)
         new_dict[new_tuple] += pre_token_bytes_dict[pre_token_byte_tuple]
-
     return new_dict
 
 

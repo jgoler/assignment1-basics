@@ -1,0 +1,12 @@
+Problem 1:
+a) It is the space character.
+b) It doesn't. 
+c) I think chr(0) gives the unicode value (in hex) of 0, whereas print(chr(0)) prints the actual space character rather than the unicode value of it. 
+
+Problem 2:
+a) A clear reason is that most internet text using UTF-8, hence, if we want to make use of a lot of internet text it makes sense to just keep using UTF-8. 
+More importantly, however, is that UTF-8 encodings are more concise. I think why this happens is because if there is something that only requires 8 bits, it will only use
+one byte in UTF-8, whereas UTF-16 will still require it to use 2 bytes regardless, so you get a lot of 0s. 
+b) The issue is that if you have a character that needs more than one byte to be represented in UTF8, you will break it up into bits and translate each of them separately instead of
+considering them as a whole. Consider the example "こんにちは!".
+c) There are rules for UTF-8. If we specify the first byte to be a continuation byte but there is not leading byte, that would not decode to anything.
