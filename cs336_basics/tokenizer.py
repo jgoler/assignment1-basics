@@ -9,6 +9,7 @@ in tokenizer_reference.py; open it only after you have passed a stage's checks.
 from collections.abc import Iterable, Iterator
 from collections import Counter
 import regex
+import json
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
@@ -173,38 +174,96 @@ class Tokenizer:
         """4a. Store the inputs. Build `self.token_to_id`, the inverse of vocab (drill 20). Append any
         special token missing from the vocab with a fresh ID. Build `self.merge_ranks`: pair -> its
         position in `merges`, so "earliest merge" becomes "smallest rank"."""
-        raise NotImplementedError
+        self.vocab = vocab
+        self.merges = merges
+        self.special_tokens = special_tokens or []
+
+        for token in self.special_tokens:
+            token_bytes = token.encode("utf-8")
+            if token_bytes not in self.vocab.values():
+                self.vocab[len(self.vocab)] = token_bytes
+
+        self.token_to_id = {token: idx for idx, token in self.vocab.items()}
+        self.merge_ranks = {pair: rank for rank, pair in enumerate(self.merges)}
+
+
 
     def split_on_special_tokens(self, text: str) -> list[str]:
         """4b. Cut `text` into a list where every special token is its own element and the text between
         them keeps its order. When special tokens overlap, the longest wins (drill 15). Drop empty strings.
         "a<|endoftext|>b" -> ["a", "<|endoftext|>", "b"]"""
-        raise NotImplementedError
+        if not self.special_tokens:
+            return [text]
+        ordered_special_tokens = sorted(self.special_tokens, key=len, reverse=True)
+        special_token_pattern = "|".join(["(" + regex.escape(special_token) + ")" for special_token in ordered_special_tokens])
+        split_text = regex.split(special_token_pattern, text)
+        return [t for t in split_text if t]
+
 
     def encode_pretoken(self, pretoken: bytes) -> list[int]:
         """4c. Apply the merges to ONE pre-token: start from its one-byte tokens (3a), repeatedly merge the
         pair with the smallest rank that is present (drill 16, then 3d), stop when none applies, then map
         tokens to IDs."""
-        raise NotImplementedError
+        word = tuple(bytes([b]) for b in pretoken)
+        while True:
+            pair, smallest_rank = None, float("inf")
+            for left, right in zip(word, word[1:]):
+                rank = self.merge_ranks.get((left, right))
+                if rank is not None and rank < smallest_rank:
+                    pair, smallest_rank = (left, right), rank
+            if pair is None:
+                break
+            word = merge_word(word, pair)
+        return [self.token_to_id[t] for t in word]
 
     def encode(self, text: str) -> list[int]:
         """4d. 4b, then for each segment: a special token becomes one ID, other text is pre-tokenized
         (stage 2's regex) and each pre-token goes through 4c."""
-        raise NotImplementedError
+        tokenized = []
+        split_text = self.split_on_special_tokens(text)
+        for i in range(len(split_text)):
+            if split_text[i] in self.special_tokens:
+                tokenized.append(self.token_to_id[split_text[i].encode("utf-8")])
+            else:
+                pretokens = pretokenize(split_text[i])
+                for pretoken in pretokens:
+                    tokenized.extend(self.encode_pretoken(pretoken.encode("utf-8")))
+        return tokenized
+                
 
     def decode(self, ids: list[int]) -> str:
         """4d. Look up each ID's bytes, join them (drill 10), decode (stage 1)."""
-        raise NotImplementedError
+        return b"".join([self.vocab[id] for id in ids]).decode("utf-8", errors="replace")
+
 
     def save(self, vocab_filepath: str, merges_filepath: str) -> None:
         """4e. Write vocab and merges to disk in any format you like, as long as `from_files` reads it back.
         Note: bytes are not JSON; decide how you'll represent them."""
-        raise NotImplementedError
+        vocab_json = {idx: list(token) for idx, token in self.vocab.items()}
+        merges_json = [[list(left), list(right)] for left, right in self.merges]
+
+        with open(vocab_filepath, "w", encoding="utf-8") as f:
+            json.dump(vocab_json, f)
+        with open(merges_filepath, "w", encoding="utf-8") as f:
+            json.dump(merges_json, f)
 
     @classmethod
     def from_files(cls, vocab_filepath: str, merges_filepath: str, special_tokens: list[str] | None = None):
         """4e. Inverse of `save`."""
-        raise NotImplementedError
+        loaded_vocab = {}
+        loaded_merges = []
+        with open(vocab_filepath, "r", encoding="utf-8") as f:
+            vocab = json.load(f)
+        for key in vocab:
+            loaded_vocab[int(key)] = bytes(vocab[key])
+        with open(merges_filepath, "r", encoding="utf-8") as f:
+            merges = json.load(f)
+        for left, right in merges:
+            left = bytes(left)
+            right = bytes(right)
+            loaded_merges.append((left, right))
+        return cls(loaded_vocab, loaded_merges, special_tokens)
+
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
         """6a-6c. A generator (drill 18) yielding the IDs of the concatenated chunks, never holding
